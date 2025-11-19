@@ -11,7 +11,7 @@ z
 - **Contenedor**: Docker
 - **Testing**: Jest
 
-## 📋 Prerrequisitos
+## 📋 Prerrequisitoss
 
 - Node.js 22+
 - Docker
