@@ -1,0 +1,17 @@
+{
+  "name": "proyecto-alexis",
+  "version": "1.0.0",
+  "description": "Proyecto Node.js básico con CI",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "echo '🚀 Build ejecutado correctamente'",
+    "start": "node src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

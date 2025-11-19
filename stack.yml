@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  proyecto-alexis:
+    image: ghcr.io/adqvelez-cloud/proyecto-alexis:latest
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+
+        # Enrutamiento HTTP → HTTPS
+        - "traefik.http.routers.proyecto-alexis.entrypoints=http"
+        - "traefik.http.routers.proyecto-alexis.rule=Host(`pgalexis.byronrm.com`)"
+        - "traefik.http.middlewares.proyecto-alexis-https-redirect.redirectscheme.scheme=https"
+        - "traefik.http.routers.proyecto-alexis.middlewares=proyecto-alexis-https-redirect"
+
+        # HTTPS con certificado automático Let's Encrypt
+        - "traefik.http.routers.proyecto-alexis-secure.entrypoints=https"
+        - "traefik.http.routers.proyecto-alexis-secure.rule=Host(`pgalexis.byronrm.com`)"
+        - "traefik.http.routers.proyecto-alexis-secure.tls=true"
+        - "traefik.http.routers.proyecto-alexis-secure.tls.certresolver=http"
+        - "traefik.http.routers.proyecto-alexis-secure.service=proyecto-alexis"
+
+        # Puerto interno donde corre tu app (Node.js → 3000)
+        - "traefik.http.services.proyecto-alexis.loadbalancer.server.port=3000"
+
+        # Red pública del traefik
+        - "traefik.docker.network=traefik-public"
+
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true

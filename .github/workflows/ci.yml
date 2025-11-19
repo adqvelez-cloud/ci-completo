@@ -1,0 +1,100 @@
+name: CI/CD to VPS with Docker Swarm
+
+on:
+  push:
+    branches:
+      - alexis
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-test-publish-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout del código
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2️⃣ Configurar Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      # 3️⃣ Instalar dependencias
+      - name: Install dependencies
+        run: npm install
+
+      # 4️⃣ Ejecutar tests
+      - name: Run tests
+        run: npm test
+
+      # 5️⃣ Build de la app (si aplica)
+      - name: Build app
+        run: npm run build --if-present
+
+      # 6️⃣ Login en GitHub Container Registry
+      - name: Login to GHCR
+        run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u adqvelez-cloud --password-stdin
+
+      # 7️⃣ Construir imagen Docker
+      - name: Docker Build
+        run: |
+          docker build -t proyecto-alexis:${{ github.sha }} .
+
+      # 8️⃣ Tag y Push al GHCR
+      - name: Tag & Push Image to GHCR
+        run: |
+          IMAGE="ghcr.io/adqvelez-cloud/proyecto-alexis"
+          docker tag proyecto-alexis:${{ github.sha }} $IMAGE:latest
+          docker tag proyecto-alexis:${{ github.sha }} $IMAGE:${{ github.sha }}
+          
+          docker push $IMAGE:latest
+          docker push $IMAGE:${{ github.sha }}
+
+      # 9️⃣ Copiar stack.yml al VPS
+      - name: Upload stack.yml to VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          source: "stack.yml"
+          target: "/home/${{ secrets.VPS_USER }}/deploy"
+
+      # 🔟 Deploy en el VPS via SSH
+      - name: Deploy on VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          script: |
+            echo "🚀 Iniciando despliegue en VPS"
+
+            cd ~/deploy
+
+            # Login al GHCR desde el VPS
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u adqvelez-cloud --password-stdin
+
+            # Descargar la última imagen
+            docker pull ghcr.io/adqvelez-cloud/proyecto-alexis:latest
+
+            # Eliminar stack anterior (si existe)
+            docker stack rm proyecto-alexis || true
+
+            # Esperar que el stack se libere
+            sleep 10
+
+            # Desplegar el nuevo stack limpio
+            docker stack deploy --with-registry-auth -c stack.yml proyecto-alexis
+
+            # Mostrar estado final
+            docker service ls
+            docker stack ps proyecto-alexis
